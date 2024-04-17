@@ -1,0 +1,469 @@
+---
+title: "Preparaing jog-test data: Case Study A"
+---
+
+``` {r installing and loading packages used in processing}
+
+package.list=c("readr", "dplyr", "janitor", "data.table", "tidyr", "rlist",
+               "conflicted")
+
+for (package in package.list) {
+  if (!require(package, character.only=T, quietly=T)) {
+    install.packages(package)
+    library(package, character.only=T)
+  }
+}
+```
+
+``` {r Loading data and explanation}
+#the following sections are separate for each time we collected jog-test data in the field. Data were structured slightly different throughout field tests, however, the end product from the two sections remains the same—a dataframe with the locations where photographs were taken or not taken
+
+#Importing data from jog-test. These were entered manually from photographs 
+fall_runs <- read_csv("../data/fall_22.csv")
+```
+
+``` {r processing, and calculating locations where photo captures occured}
+#step 1 is generating the distances where captures did occur based on time photos were taken and speed of each jog
+
+#date-times of captures (and start) to be in POSIX to convert to UNIT
+fall_runs$DateTimeStart <- as.POSIXct(fall_runs$DateTimeStart, 
+                                      tryFormats = c("%d:%m:%Y %H:%M:%OS",
+                                                      "%d-%m-%Y %H:%M:%OS"))
+fall_runs$D1 <- as.POSIXct(fall_runs$D1, tryFormats = c("%d:%m:%Y %H:%M:%OS",
+                                                        "%d-%m-%Y %H:%M:%OS"))
+fall_runs$D2 <- as.POSIXct(fall_runs$D2, tryFormats = c("%d:%m:%Y %H:%M:%OS",
+                                                        "%d-%m-%Y %H:%M:%OS"))
+fall_runs$D3 <- as.POSIXct(fall_runs$D3, tryFormats = c("%d:%m:%Y %H:%M:%OS",
+                                                        "%d-%m-%Y %H:%M:%OS"))
+fall_runs$D4 <- as.POSIXct(fall_runs$D4, tryFormats = c("%d:%m:%Y %H:%M:%OS",
+                                                        "%d-%m-%Y %H:%M:%OS"))
+
+#Convert POSIX to UNIX time (seconds since Jan 1 1970)
+fall_runs$u_s <- as.numeric(fall_runs$DateTimeStart)
+fall_runs$u_1 <- as.numeric(fall_runs$D1)
+fall_runs$u_2 <- as.numeric(fall_runs$D2)
+fall_runs$u_3 <- as.numeric(fall_runs$D3)
+fall_runs$u_4 <- as.numeric(fall_runs$D4)
+
+#from UNIX, can calculate seconds after start when captures occurred 
+fall_runs$s1 <- (fall_runs$u_1-fall_runs$u_s)
+fall_runs$s2 <- (fall_runs$u_2-fall_runs$u_s)
+fall_runs$s3 <- (fall_runs$u_3-fall_runs$u_s)
+fall_runs$s4 <- (fall_runs$u_4-fall_runs$u_s)
+
+#rounding seconds. If .5 or above = up, rest = down
+fall_runs$Duration <- round(fall_runs$Duration, digits = 0)
+
+#calculate a velocity (m/s) of each run
+fall_runs$velocity <- (fall_runs$`Run distance`/fall_runs$Duration)
+
+#multiply the velocity of each run by the seconds (elapsed) when captures
+#occurred = the distance along transect when captures occurred
+fall_runs$distance1 <- (fall_runs$velocity * fall_runs$s1)
+fall_runs$distance2 <- (fall_runs$velocity * fall_runs$s2)
+fall_runs$distance3 <- (fall_runs$velocity * fall_runs$s3)
+fall_runs$distance4 <- (fall_runs$velocity * fall_runs$s4)
+
+#because we ran both directions on transect, and we want distances standardized
+#I'll take all #2 runs (left --> right) and minus them from 20
+#result are standardized distances 
+fall_runs$distance1 <- ifelse(fall_runs$direction == 2, 
+                              20 - fall_runs$distance1, fall_runs$distance1)
+fall_runs$distance2 <- ifelse(fall_runs$direction == 2, 
+                              20 - fall_runs$distance2, fall_runs$distance2)
+fall_runs$distance3 <- ifelse(fall_runs$direction == 2, 
+                              20 - fall_runs$distance3, fall_runs$distance3)
+fall_runs$distance4 <- ifelse(fall_runs$direction == 2, 
+                              20 - fall_runs$distance4, fall_runs$distance4)
+
+#checking to make sure all distances fit within 0-20m bounds
+summary(fall_runs$distance1)
+summary(fall_runs$distance2)
+summary(fall_runs$distance3)
+summary(fall_runs$distance4)  #no issues
+```
+
+``` {r cleaning up dataframe}
+#removing intermediary step columns
+pos_prep <- select(fall_runs, -c(u_s, u_1, u_2, u_3, u_4))
+```
+
+``` {r, pivoting so all datetimes end up in the same column}
+#the 'distance' (D) columns have the distances where detection occurred. 
+#Pivot these to all be in the same column
+pos_piv <- pivot_longer(pos_prep, c(D1, D2, D3, D4))
+pos_piv2 <- pos_piv[!is.na(pos_piv$value),] #the 'value' column is all we need
+
+#save old data frame with 0's still attached for the future
+future <- pos_prep
+```
+
+``` {r, saving used locations i.e., where detections occured}
+#saving this DF
+write_csv(pos_piv2, "positive_dets_fall.csv")
+```
+
+``` {r, sequencing of available locations i.e., where detections could have occured}
+#new column with start times of each run
+future$unix_start <- as.numeric(future$DateTimeStart)
+
+#new column with end times of runs based on time taken to run
+future$unix_end <- (future$unix_start + future$Duration)
+
+##converting the unix times back to Posix for the loop to run.
+future$unix_start <- as.POSIXct(future$unix_start, origin="1970-01-01")
+future$unix_end <- as.POSIXct(future$unix_end, origin="1970-01-01")
+
+#for the second loop based on time it took for each run to happen
+future$d_start_s <- (future$unix_start - future$unix_start)
+future$d_end_s <- (future$unix_end - future$unix_start)
+
+future$d_start_s <- as.numeric(future$d_start_s)
+future$d_end_s <- as.numeric(future$d_end_s)
+```
+
+``` {r, running two loops: 1) all possible seconds on transect, 2) all possible POSIX times on transect}
+#Creating a loop that sequences the seconds between start and end of each jog
+
+#create an empty list that I need to put everything in 
+a <- list(NULL)
+
+# start of for loop (prob easier ways to do this but....)
+## going through each row of my DF
+for( i in 1:nrow(future)) {
+  
+  #sequencing everysingle second value between the start and end time colums 
+  b <-  (seq(future$d_start_s[i], future$d_end_s[i], by = 1))
+  
+  #just making sure i can access every column in the massive a list
+  a[[i]] <- b
+}
+
+# this loop sequences all the POSIX time between start and end of jogs
+#create an empty list that I need to put everything in 
+w <- list(NULL)
+
+# start of for loop (prob easier ways to do this but....)
+## going through each row of my DF
+for( i in 1:nrow(future)) {
+  
+  #sequencing everysingle second value between the start and end time colums 
+  q <-  (seq(future$unix_start[i], future$unix_end[i], by = "1 sec"))
+  
+  #just making sure i can access every column in the massive a list
+  w[[i]] <- q
+}
+
+#merging old data with lists
+unique_id <- as.list(future$Unique.ID)
+x_distance <- as.list(future$`Transect distance`)
+duration <- as.list(future$Duration)
+run_dist <- as.list(future$`Run distance`)
+
+ok <- cbind(w, a, unique_id, run_dist, x_distance, duration)
+ok <- as.data.frame(ok)
+
+## unlisting the values so i can get them into a DF
+z <- unnest(ok, w, a)
+
+#converting list --> DF
+y <- as.data.frame(z)
+
+#fixing structures
+y$duration <- as.numeric(y$duration)
+y$x_distance <- as.numeric(y$x_distance)
+y$run_dist <- as.numeric(y$run_dist)
+y$unique_id <- as.character(y$unique_id)
+y$unique_id <- as.factor(y$unique_id)
+
+#velocity = [distnace (20m) /time for run]
+y$velocity <- (y$run_dist/y$duration)
+
+#now getting my horizontal distances [ multiplying velocity by seconds in (a)]
+y$y_dist <- (y$velocity * y$a)
+
+#now, finally, filling the detection column with 0's
+y$detection <- rep(0, each = )
+neg <- y
+```
+
+``` {r, making used and available locations consistent}
+#now we have 2 data frames, one with available locations  (where they could have occured based on speed), and used locations, where captures actually did occur
+neg <- as.data.frame(neg)
+positive_detects <- read_csv("./output/positive_dets_fall.csv")
+
+#removing the intermediary step columns
+positive_detects <- select(positive_detects, -c(DateTimeStart,s1,s2,s3,s4,
+                                                distance1,distance2,distance3,
+                                                distance4,velocity))
+
+#renaming variables to be consistent with other data (+fixing my typos)
+names(positive_detects)[names(positive_detects) == "Transect distance"] <- "x_distance"
+names(positive_detects)[names(positive_detects) == "Decection"] <- "detection"
+names(positive_detects)[names(positive_detects) == "value"] <- "detection_datetime"
+
+names(neg)[names(neg) == "w"] <- "detection_datetime"
+names(neg)[names(neg) == "unique_id"] <- "Unique.ID"
+names(neg)[names(neg) == "a"] <- "seconds_in"
+names(neg)[names(neg) == "y_dist"] <- "grid_dist"
+names(neg)[names(neg) == "detection"] <- "detection"
+```
+
+``` {r, merging data}
+all <- right_join(positive_detects, neg, by = c("detection_datetime", "Unique.ID"))
+```
+
+```  {r, cleaning up merge and getting column of interest}
+#This is the column of interest, where captures did / did not occur
+names(all)[names(all) == "detection.x"] <- "detection"
+all$detection <- replace_na(all$detection, 0)
+
+#cleaning up unnecessary columns 
+all2 <- select(all, -c(x_distance.x, `Run distance`, direction,
+                       duration, name, detection.y, Duration))
+
+#add in camera brand name
+all2$Unique.ID <- as.character(all2$Unique.ID)
+
+#all cams ending with -9 are Reconyx Ultrafire
+all2 <- all2 %>%
+  mutate(brand = case_when(
+    endsWith(Unique.ID, "-9") ~ "reconyx"
+  ))
+
+#all other endings are Cuddeback model H 
+all2$brand <- replace_na(all2$brand, "cudde")
+
+#removing any accidental duplicates
+all3 <- all2[!duplicated(cbind(all2$detection_datetime, all2$Unique.ID)), ]
+```
+
+``` {r, saving spatial locations for one field trial}
+#saving
+fall22 <- write_csv(all3, "fall22_detect.csv")
+```
+
+```{r, repeating entire same steps as above, but for other field data}
+#importing .csv file
+walktest <- read_csv("../data/walktest.csv")
+
+#datetimes to  Posix for conversion to unix
+walktest$datetime <- as.POSIXct(walktest$datetime, format = "%d-%m-%Y%H:%M:%S")
+walktest$datetime.1 <- as.POSIXct(walktest$datetime.1, format = "%d-%m-%Y%H:%M:%S")
+walktest$datetime.2 <- as.POSIXct(walktest$datetime.2, format = "%d-%m-%Y%H:%M:%S")
+walktest$datetime.3 <- as.POSIXct(walktest$datetime.3, format = "%d-%m-%Y%H:%M:%S")
+walktest$datetime.4 <- as.POSIXct(walktest$datetime.4, format = "%d-%m-%Y%H:%M:%S")
+
+#re-structuring
+walktest$detection <- as.factor(walktest$detection)
+walktest$x.distance <- as.numeric(walktest$x.distance)
+
+#data entered with 2's and NAs for direction, replace NA with 1's 
+walktest$direction <- replace_na(walktest$direction, 1)
+walktest$direction <- as.factor(walktest$direction)
+
+#Removing jogs where jog-test initiation failed (e.g., hand motions didnt register)
+walktest <- walktest[!is.na(walktest$datetime),]
+
+#Checking to see if there are any duplicate entries to investigate.
+duplicated(walktest$datetime)  #No dups, great.
+
+#Convert POSIX to UNIX to get a time between start --> captures
+walktest$unix <- as.numeric(walktest$datetime)
+walktest$unix.1 <- as.numeric(walktest$datetime.1)
+walktest$unix.2 <- as.numeric(walktest$datetime.2)
+walktest$unix.3 <- as.numeric(walktest$datetime.3)
+walktest$unix.4 <- as.numeric(walktest$datetime.4)
+
+#minus capture times form start times to get seconds when captures occurred
+walktest$d_1 <- (walktest$unix.1 - walktest$unix)
+walktest$d_2 <- (walktest$unix.2 - walktest$unix)
+walktest$d_3 <- (walktest$unix.3 - walktest$unix)
+walktest$d_4 <- (walktest$unix.4 - walktest$unix)
+
+#rounding seconds. If .5 or above = up, rest = down
+walktest$duration <- round(walktest$duration, digits = 0)
+
+#calculate jog velocity
+walktest$velocity <- (walktest$run.dist/walktest$duration)
+
+#multiply velocity of run by seconds of capture = distance when capture occured
+walktest$detect_distance_1 <- (walktest$velocity * walktest$d_1)
+walktest$detect_distance_2 <- (walktest$velocity * walktest$d_2)
+walktest$detect_distance_3 <- (walktest$velocity * walktest$d_3)
+walktest$detect_distance_4 <- (walktest$velocity * walktest$d_4)
+
+#Because we ran both directions on a transect, need to minus one directions distances from 20, so that locations generated are standardized
+walktest$detect_distance_1 <- ifelse(walktest$direction == 2, 
+                    20 - walktest$detect_distance_1, walktest$detect_distance_1)
+walktest$detect_distance_2 <- ifelse(walktest$direction == 2, 
+                    20 - walktest$detect_distance_2, walktest$detect_distance_2)
+walktest$detect_distance_3 <- ifelse(walktest$direction == 2, 
+                    20 - walktest$detect_distance_3, walktest$detect_distance_3)
+walktest$detect_distance_4 <- ifelse(walktest$direction == 2, 
+                    20 - walktest$detect_distance_4, walktest$detect_distance_4)
+
+#check to see if distances are bound by 0-20 or if any errors occurred
+summary(walktest$detect_distance_1)
+summary(walktest$detect_distance_2)
+summary(walktest$detect_distance_3)
+summary(walktest$detect_distance_4) #no issues
+
+#removing intermediary step columns
+pos_prep <- select(walktest, -c(detection.1,detection.2,detection.3,detection.4,
+                                unix,unix.1,unix.2,unix.3,unix.4,d_1,d_2,d_3,d_4,))
+
+#pivot values to all be in the same row
+pos_piv <- pivot_longer(pos_prep, c(datetime.1,datetime.2,datetime.3,datetime.4))
+pos_piv2 <- pos_piv[!is.na(pos_piv$value),] #the 'value' column here is all we need
+
+#convert back to a character before saving or else the POSIX get messed up
+pos_piv2$value <- as.character(pos_piv2$value)
+
+#saving DF with negatives for the future
+future2 <- pos_prep
+
+#saving the positive detection dataframe
+    #write_csv(pos_piv2, "march_22_pos.csv")
+
+############################################
+#generate available locations 
+
+#new column with start times of each run
+future2$unix_start <- as.numeric(future2$datetime)
+
+#new column with end times of runs based on time taken to run
+future2$unix_end <- (future2$unix_start + future2$duration)
+
+#converting the UNIX times back to POSIX for the loop to run.
+future2$unix_start <- as.POSIXct(future2$unix_start, origin="1970-01-01")
+future2$unix_end <- as.POSIXct(future2$unix_end, origin="1970-01-01")
+
+future2$d_start_s <- (future2$unix_start - future2$unix_start)
+future2$d_end_s <- (future2$unix_end - future2$unix_start)
+
+future2$d_start_s <- as.numeric(future2$d_start_s)
+future2$d_end_s <- as.numeric(future2$d_end_s)
+
+#THIS section sequences all possible seconds between start and end of each jog
+
+#create an empty list that I need to put everything in 
+a <- list(NULL)
+
+# start of for loop 
+## going through each row of my DF
+for( i in 1:nrow(future2)) {
+  
+  #sequencing everysingle second value between the start and end time colums 
+  b <-  (seq(future2$d_start_s[i], future2$d_end_s[i], by = 1))
+  
+  #just making sure i can access every column in the massive a list
+  a[[i]] <- b
+}
+
+#THIS section sequences all possible POSIX values between start and end of each jog
+
+#create an empty list that I need to put everything in 
+w <- list(NULL)
+
+# start of for loop 
+## going through each row of my DF
+for( i in 1:nrow(future2)) {
+  
+  #sequencing every single second value between the start and end time column 
+  q <-  (seq(future2$unix_start[i], future2$unix_end[i], by = "1 sec"))
+  
+  #just making sure i can access every column in the massive a list
+  w[[i]] <- q
+}
+
+#merging old data with list.
+unique_id <- as.list(future2$unique.id)
+x_distance <- as.list(future2$x.distance)
+duration <- as.list(future2$duration)
+run_dist <- as.list(future2$run.dist)
+
+ok <- cbind(w, a, unique_id, run_dist, x_distance, duration)
+ok <- as.data.frame(ok)
+
+## unlisting the values so i can get them into a DF
+z <- unnest(ok, w, a)
+
+#converting list --> DF
+y <- as.data.frame(z)
+
+#now have all possible available locations based on speed. 
+
+#fixing structures
+y$duration <- as.numeric(y$duration)
+y$x_distance <- as.numeric(y$x_distance)
+y$run_dist <- as.numeric(y$run_dist)
+y$unique_id <- as.character(y$unique_id)
+y$unique_id <- as.factor(y$unique_id)
+
+#velocity = [distance (20m) /time for run]
+y$velocity <- (y$run_dist/y$duration)
+
+#now getting my horizontal distances [ multiplying velocity by seconds in (a)]
+y$y_dist <- (y$velocity * y$a)
+
+#now, finally, filling the detection column with 0's
+y$detection <- rep(0, each = )
+neg2 <- y
+
+#convert to DF
+neg2 <- as.data.frame(neg2)
+
+#re-calling the positive
+positive_det_2 <- pos_piv2
+positive_det_2$value <- as.POSIXct(positive_det_2$value, format = "%Y-%m-%d %H:%M:%S")
+
+#renaming vars to be consistent with each other 
+names(positive_det_2)[names(positive_det_2) == "x.distance"] <- "x_distance"
+names(positive_det_2)[names(positive_det_2) == "value"] <- "detection_datetime"
+names(positive_det_2)[names(positive_det_2) == "unique.id"] <- "unique_id"
+names(positive_det_2)[names(positive_det_2) == "run.dist"] <- "run_dist"
+
+names(neg2)[names(neg2) == "w"] <- "detection_datetime"
+names(neg2)[names(neg2) == "a"] <- "seconds_in"
+names(neg2)[names(neg2) == "y_dist"] <- "grid_dist"
+names(neg2)[names(neg2) == "x.distance"] <- "x_distance"
+
+# Merging used and available locations
+all_2.0 <- right_join(positive_det_2, neg2, by = c("detection_datetime", "unique_id"))
+
+#new column of binary detection 
+all_2.0$detection <- replace_na(all_2.0$detection.x, "0")
+
+#removing unnecessary columns 
+all_2.2 <- subset(all_2.0, select = c("unique_id", "detection_datetime", "seconds_in", 
+                                      "run_dist.y", "x_distance.y", "duration.y",
+                                      "velocity.y", "grid_dist", "detection"))
+
+#just adding in a brand column and then we can save 
+all_2.2$unique_id <- as.character(all_2.2$unique_id)
+
+#all cams ending in -9 are Reconyx ultrafire
+all_2.2 <- all_2.2 %>%
+  mutate(brand = case_when(
+    endsWith(unique_id, "-9") ~ "reconyx"
+  ))
+
+#all other cams are cuddeback model H
+all_2.2$brand <- replace_na(all_2.2$brand, "cudde")
+
+#making sure no duplicates
+all3.0 <- all_2.2[!duplicated(cbind(all_2.2$detection_datetime, 
+                                    all_2.2$unique_id)), ]
+```
+
+```{r saving prepped jog-test data for analysis}
+#saving
+march22 <- write_csv(all3.0, "march22_det.csv")
+```
+
+
+
+
+
+

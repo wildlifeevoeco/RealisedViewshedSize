@@ -1,0 +1,354 @@
+---
+title: "Calculating the Effective Capture Areas for Case Study B"
+
+---
+
+``` {r installing and loading packages used for analysis}
+
+package.list=c("readr", "dplyr", "janitor", "data.table", "tidyr", "stats",
+               "conflicted", "lubridate", "lme4", "pROC", "MuMIn", "caret",
+               "mosaic", "mgcv", "gamm4", "insight", "ROCR", "gamclass", "devtools", 
+               "gratia")
+
+for (package in package.list) {
+  if (!require(package, character.only=T, quietly=T)) {
+    install.packages(package)
+    library(package, character.only=T)
+  }
+}
+
+#devtools::install_github("m-clark/gammit")
+library(gammit)
+```
+
+```{r, combining two controlled setting jog-test trials for analysis}
+
+#bringing in the two processed jog-test data frames for Case Study B
+pipp_2 <- read.csv("../output/pippy_2_detect.csv", header=T, na.strings="")
+pipp_1 <- read.csv("../output/pippy_detect.csv", header=T, na.strings="")
+
+#making column names consistent for merge
+names(pipp_1)[names(pipp_1) == "x_distance.y"] <- "x_distance"
+pipp_1 <- select(pipp_1, -c(brand))
+
+names(pipp_2)[names(pipp_2) == "sec_in"] <- "seconds_in"
+names(pipp_2)[names(pipp_2) == "velocity.y"] <- "velocity"
+names(pipp_2)[names(pipp_2) == "y_dist"] <- "grid_dist"
+names(pipp_2)[names(pipp_2) == "detection_time"] <- "detection_datetime"
+pipp_2 <- select(pipp_2, -c(date))
+
+#need to add time of day to Pipp_1 (0 = night, 1 = day)
+#Pippy park 1 trial = all at night.
+pipp_1$tod <- rep(0, times =)
+
+#trial 2 all done mid day 
+pipp_2$tod <- rep(1, times =)
+
+#and sensitivity. 1=low, 2=med, 3=high, 4=v.high. all trial one cams set to high (3)
+pipp_1$sensitivity <- rep(3, times = )
+
+#and number of photos. 1=1photo, 2=3photo, 3=5photo
+pipp_1$num_photos <- rep(2, times =)
+```
+
+```{r, Changing "common" names of cameras to serial number for consistency. The same cameras were used in both trials here for case study B}
+
+#changing the camera #'s to serial #to make the naming consistent 
+pipp_1$unique_id[pipp_1$unique_id == "PP-1"] <- "S12141940"
+pipp_1$unique_id[pipp_1$unique_id == "PP-6"] <- "S11132983"
+pipp_1$unique_id[pipp_1$unique_id == "PP-8"] <- "S11134527"
+pipp_1$unique_id[pipp_1$unique_id == "PP-3"] <- "S12140712"
+pipp_1$unique_id[pipp_1$unique_id == "PP-2"] <- "S10132834"
+pipp_1$unique_id[pipp_1$unique_id == "PP-7"] <- "S11133153"
+pipp_1$unique_id[pipp_1$unique_id == "PP-9"] <- "S11133089"
+pipp_1$unique_id[pipp_1$unique_id == "PP-4"] <- "S12141910"
+
+pipp_2$unique_id[pipp_2$unique_id == "WP-2"] <- "S12141940"
+pipp_2$unique_id[pipp_2$unique_id == "WP-1"] <- "S11132983"
+pipp_2$unique_id[pipp_2$unique_id == "WP-3"] <- "S11134527"
+pipp_2$unique_id[pipp_2$unique_id == "WP-4"] <- "S11132988"
+pipp_2$unique_id[pipp_2$unique_id == "WP-5"] <- "S12140712"
+pipp_2$unique_id[pipp_2$unique_id == "WP-6"] <- "S10132834"
+pipp_2$unique_id[pipp_2$unique_id == "WP-7"] <- "S11133153"
+pipp_2$unique_id[pipp_2$unique_id == "WP-8"] <- "S11133089"
+pipp_2$unique_id[pipp_2$unique_id == "WP-9"] <- "S12141910"
+
+```
+
+```{r, Merging two data and checking structure}
+#merging data
+pp_GAMM <- rbind(pipp_1, pipp_2)
+#pp_GAMM <- write_csv(pp_GAMM, "all_pippy_GAMM.csv")
+
+#formatting variables 
+str(pp_GAMM)
+pp_GAMM$detection.x <- as.factor(pp_GAMM$detection.x)
+pp_GAMM$unique_id <- as.factor(pp_GAMM$unique_id)
+pp_GAMM$sensitivity <- as.factor(pp_GAMM$sensitivity)
+pp_GAMM$num_photos <- as.factor(pp_GAMM$num_photos)
+pp_GAMM$tod <- as.factor(pp_GAMM$tod)
+
+#creating a standardized grid where camera is at location [0,0]. Not necessary, I just like this formatting better
+pp_GAMM$grid_dist <- (pp_GAMM$grid_dist - 10)
+
+#rounding values to nearest metre  
+pp_GAMM$grid_dist <- round(pp_GAMM$grid_dist,0)
+pp_GAMM$velocity <- round(pp_GAMM$velocity,0)
+
+```
+
+```{r, adding a lag column if a photo happened in last 2 secs}
+#trying to account for the refractory period, whether or not a photo occurred in the previous 2 seconds
+
+pp_GAMM <- arrange(pp_GAMM, unique_id, detection_datetime)
+
+#Determine if a trigger happened 1 or 2 seconds ago (2 sec delay with cam)
+laggy1 <- (shift(pp_GAMM$detection.x, n = 1, type = 'lag'))
+laggy2 <- (shift(pp_GAMM$detection.x, n = 2, type = 'lag'))
+
+#put in df
+lag <- cbind.data.frame(laggy1, laggy2)
+
+#numeric 
+lag$laggy1 <- as.numeric(lag$laggy1)
+lag$laggy2 <- as.numeric(lag$laggy2)
+
+#replace na's with 0
+lag$laggy1 <- replace_na(lag$laggy1, 0)
+lag$laggy2 <- replace_na(lag$laggy2, 0)
+
+#convert 1's to 0 and 2's to 1 
+lag$laggy1[lag$laggy1 == 1] <- 0
+lag$laggy2[lag$laggy2 == 1] <- 0
+
+lag$laggy1[lag$laggy1 == 2] <- 1
+lag$laggy2[lag$laggy2 == 2] <- 1
+
+#new column with both 
+lag$lag <- lag$laggy1 + lag$laggy2
+
+#final step, 2's back to 1's
+lag$lag[lag$lag == 2] <- 1
+
+#adding to the pp_GAMM dataframe
+pp_GAMM$seconds_since <- lag$lag
+
+#formatting 
+pp_GAMM$seconds_since <- as.factor(pp_GAMM$seconds_since)
+
+#save
+#write.csv(pp_GAMM, "all_pippy_gam.csv")
+```
+
+```{r, running Generalized Addidive Mixed Model}
+
+#model with internal setting co-variates 
+
+total_g <- gam(detection.x ~ s(x_distance, grid_dist, bs='gp', k=50)  #Gaussian process spline on physical locations in front of camera (equivalent to kriging) to allow for interpolation between transect runs. Here, i had to adjust K parameter to meet the assumptions of gam.check below
+                 + sensitivity + num_photos + tod + seconds_since #categories have to be fit as standard GLM variables 
+                 + s(unique_id, bs='fs'),  #random effect basis spline to allow for variable curvature at each unique camera 
+                 family = binomial, data = pp_GAMM)
+
+#model output
+gratia::draw(total_g)
+summary(total_g)
+
+#model checks 
+gam.check(total_g) #had to adjust K parameter here to meet assumptions
+
+```
+
+```{r, Generating ADA through prediciton}
+
+#parallel and perpendicular distances
+runs <- seq(from = -10, to = 10, by = 1)
+grid_dist <- rep(runs, times = 40)
+# want to predict to 40 since cams cant capture this far
+x_distance <- rep(1:40, each = 21)
+#time of day (#1 = day, #0 = night)
+tod <- rep(as.factor(1), each = 840)
+#number of photos per trigger (#1 = one photo, #2 = three photos, #3 = five photos)
+num_photos <- rep(as.factor(3), each = 840)
+#sensitivity (#1 = low, #2 = medium, #3 = high, #4 = very high)
+sensitivity <-  rep(as.factor(1), each = 840)
+#seconds_since
+seconds_since <- rep(as.factor(0), times=840)
+#unique_id
+unique_id <- rep(as.factor("S12141940"),times=840)
+
+#new df of all simulated data
+pred_df <- cbind.data.frame(grid_dist, x_distance, tod, num_photos, 
+                            sensitivity, seconds_since, unique_id)
+
+#generating predictions
+pred_df$pred <- predict_gamm(total_g, pred_df, type = "link", re_form=NA, se.fit = TRUE)
+
+#mean back transformation
+pred_df$mean <- (exp(pred_df$pred$prediction.fit)) /
+                        (1 + (exp(pred_df$pred$prediction.fit)))
+
+#mean
+base::sum(pred_df$mean)
+
+#lower SE
+base::sum(exp(pred_df$pred$prediction.fit - 
+                     (pred_df$pred$prediction.se.fit)) /
+                      (1 + exp(pred_df$pred$prediction.fit - 
+                                 (pred_df$pred$prediction.se.fit))))
+#upper SE
+base::sum(exp(pred_df$pred$prediction.fit 
+                      + (pred_df$pred$prediction.se.fit)) /
+                      (1 + exp(pred_df$pred$prediction.fit 
+                      + (pred_df$pred$prediction.se.fit))))
+  
+
+```
+
+```{r plot}
+
+ggplot(pred_df) +
+  geom_tile(aes(x = grid_dist, y = x_distance, fill = mean, alpha = is.na(mean))) +
+  coord_equal() +
+  scale_alpha_manual(values = c('TRUE' = 0, 'FALSE' = 1)) +
+  guides(alpha = 'none') +
+  labs(x = '', y = '') +
+  scale_fill_gradient2(low = "blue", high = "orange", mid = "lightsalmon", midpoint = 0.4) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  xlab("Location (m) perpendicular to camera trap") +
+  ylab("Location (m) parallel  to camera trap")+
+  theme(axis.title=element_text(size=12, colour = "black")) +
+  labs(fill = "Probability of 
+    capture") +
+  theme_bw() 
+```
+
+```{r,calculating ADA for combos of sensitivity + # photos and plotting}
+#Figure 4. ADA's  based on all combinations of sensitivity and #of photos per trigger
+## held at day time. I just calculated ADA above, and imported values below. 
+
+ADA <- c(72.96,23.90,25.46,135.03,51.37,54.40,186.87,80.22,84.51,347.80,211.97,219.09)
+upper_se <- c(104.19,33.77,37.52,176.18,69.35,74.53,236.15,106.22,111.67,432.04,265.95,282.21)
+lower_se <- c(51.86,17.41,17.68,106.66,39.24,40.82,153.89,62.49,65.97,299.36,176.49,175.74)
+sensitivity <- c("low", "low", "low", "medium", "medium", "medium", "high", "high", "high", "very high", "very high", "very high")
+photos <- c("one", "three", "five", "one", "three", "five", "one", "three", "five", "one", "three", "five")
+sens <- cbind.data.frame(ADA, upper_se, lower_se, sensitivity, photos)
+
+#generating plot 
+
+cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+ggplot(sens, aes(x=factor(sensitivity, level = c("low", "medium", "high", "very high")), y=ADA, colour = forcats::fct_inorder(photos)), shape = forcats::fct_inorder(photos)) + 
+         geom_point(size = 6, alpha = 0.4, 
+                    position = position_dodge(width = 0.4)) +
+  geom_errorbar(aes(ymin=lower_se, ymax=upper_se, width=0.2), 
+                position=position_dodge(width = 0.4)) +
+  scale_color_manual(values = c("#440154", "#21918c", "#5ec962"), breaks = c("one", "three", "five")) +
+  scale_fill_manual(values = c("#440154", "#21918c", "#5ec962")) +
+  labs(colour = "Number of 
+   photos") + 
+  ylim(0,450) +
+ xlab("Sensitivity") +
+  ylab(bquote("Effective capture area" (m^2))) +
+  theme_classic() +
+theme(axis.text.x = element_text(size = 14), axis.title.x = element_text(size = 15),
+      axis.text.y = element_text(size = 14), axis.title.y = element_text(size = 15), 
+      legend.text = element_text(size = 14), legend.title = element_text(size=15),
+      legend.position = c(0.12, 0.88))
+
+ggsave("figure_4.pdf", width = 10, height = 6)
+```
+
+```{r, Day and night predictions}
+
+#parallel and perpendicular distances
+runs <- seq(from = -10, to = 10, by = 1)
+grid_dist <- rep(runs, times = 40)
+# want to predict to 40 since cams cant capture this far
+x_distance <- rep(1:40, each = 21)
+#time of day (#1 = day, #0 = night)
+tod <- rep(as.factor(1), each = 840)
+#number of photos per trigger (#1 = one photo, #2 = three photos, #3 = five photos)
+num_photos <- rep(as.factor(1), each = 840)
+#sensitivity (#1 = low, #2 = medium, #3 = high, #4 = very high)
+sensitivity <-  rep(as.factor(2), each = 840)
+#seconds_since
+seconds_since <- rep(as.factor(0), times=840)
+#unique_id
+unique_id <- rep(as.factor("S12141940"),times=840)
+
+#new df of all simulated data
+pred_df <- cbind.data.frame(grid_dist, x_distance, tod, num_photos, 
+                            sensitivity, seconds_since, unique_id)
+
+#generating predictions
+pred_df$pred <- predict_gamm(total_g, pred_df, type = "link", 
+                             re_form = NA, se.fit = TRUE)
+
+#mean back transformation
+pred_df$mean <- (exp(pred_df$pred$prediction.fit)) /
+                        (1 + (exp(pred_df$pred$prediction.fit)))
+
+#mean
+base::sum(pred_df$mean)  #day = 135.0328    #night = 128.5097
+
+#lower SE
+base::sum(exp(pred_df$pred$prediction.fit - 
+                     (pred_df$pred$prediction.se.fit)) /
+                      (1 + exp(pred_df$pred$prediction.fit - 
+                                 (pred_df$pred$prediction.se.fit))))
+#day = 106.662   night = 97.18763
+
+#upper SE
+base::sum(exp(pred_df$pred$prediction.fit 
+                      + (pred_df$pred$prediction.se.fit)) /
+                      (1 + exp(pred_df$pred$prediction.fit 
+                      + (pred_df$pred$prediction.se.fit))))
+#day = 176.1765  night = 173.4033
+```
+
+```{r, Daytime and nighttime figures (Figure 5) ADA code}
+
+color_list <- c("#E69F00", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", "#29AF7FFF", "#56B4E9")
+
+day <- ggplot(pred_df) +
+  geom_tile(aes(x = grid_dist, y = x_distance, fill = mean, alpha = is.na(mean))) +
+  coord_equal() +
+  scale_alpha_manual(values = c('TRUE' = 0, 'FALSE' = 1)) +
+  guides(alpha = 'none') +
+  labs(x = '', y = '') +
+  scale_fill_gradient2(low = "blue", high = "orange", mid = "lightsalmon", midpoint = 0.6) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  xlab("Location (m) perpendicular to camera trap") +
+  ylab("Location (m) parallel to camera trap")+
+  theme(axis.title=element_text(size=14, colour = "black")) +
+  theme(axis.text=element_text(size=14, colour = "black")) +
+  labs(fill = "Probability of 
+    capture") +
+  theme_bw() 
+
+night <-  ggplot(pred_df) +
+  geom_tile(aes(x = grid_dist, y = x_distance, fill = mean, alpha = is.na(mean))) +
+  coord_equal() +
+  scale_alpha_manual(values = c('TRUE' = 0, 'FALSE' = 1)) +
+  guides(alpha = 'none') +
+  labs(x = '', y = '') +
+  scale_fill_gradient2(low = "blue", high = "orange", mid = "lightsalmon", midpoint = 0.6) +
+  scale_x_continuous(expand = c(0, 0)) +
+  scale_y_continuous(expand = c(0, 0)) +
+  xlab("Location (m) perpendicular to camera trap") +
+  ylab("Location (m) parallel to camera trap")+
+  theme(axis.title=element_text(size=13, colour = "black")) +
+  theme(axis.text=element_text(size=13, colour = "black")) +
+  labs(fill = "Probability of 
+    capture") +
+  theme_bw() 
+
+plot(day)
+plot(night)
+
+ggsave("day_time.pdf", plot = day)
+ggsave("night_time.pdf", plot = night)
+```
+

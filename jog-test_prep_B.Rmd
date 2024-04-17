@@ -1,0 +1,510 @@
+---
+title: "Preparing jog-test data: Case Study B"
+---
+
+``` {r installing and loading packages used in processing}
+
+package.list=c("readr", "dplyr", "janitor", "data.table", "tidyr", "rlist",
+               "conflicted")
+
+for (package in package.list) {
+  if (!require(package, character.only=T, quietly=T)) {
+    install.packages(package)
+    library(package, character.only=T)
+  }
+}
+```
+
+``` {r, data import}
+#loading manually entered field data
+pipp <- read_csv("../data/pipp_day_filt.csv")
+```
+
+``` {r, These data were entered slighly different than case study A, extra clean up before we start, echo=FALSE}
+#checking structure
+str(pipp) #need to change characters to date times
+
+#changing the 00:00:00 vars to NA's. Blanks were entered as NAs in this trial
+pipp[pipp == "09-02-2022 00:00:00"] <- NA
+pipp[pipp == "23-02-2022 00:00:00"] <- NA
+```
+
+``` {r, structing, formatting, and used location caluclations}
+#format to date times 
+pipp$start_time <- as.POSIXct(pipp$start_time, format = "%d-%m-%Y %H:%M:%S")
+pipp$d.1 <- as.POSIXct(pipp$d.1, format = "%d-%m-%Y %H:%M:%S")
+pipp$d.2 <- as.POSIXct(pipp$d.2, format = "%d-%m-%Y %H:%M:%S")
+pipp$d.3 <- as.POSIXct(pipp$d.3, format = "%d-%m-%Y %H:%M:%S")
+pipp$d.4 <- as.POSIXct(pipp$d.4, format = "%d-%m-%Y %H:%M:%S")
+pipp$d.5 <- as.POSIXct(pipp$d.5, format = "%d-%m-%Y %H:%M:%S")
+pipp$d.6 <- as.POSIXct(pipp$d.6, format = "%d-%m-%Y %H:%M:%S")
+pipp$d.7 <- as.POSIXct(pipp$d.7, format = "%d-%m-%Y %H:%M:%S")
+pipp$d.8 <- as.POSIXct(pipp$d.8, format = "%d-%m-%Y %H:%M:%S")
+
+#Convert posix to unit to get seconds between start --> capture times
+pipp$u0 <- as.numeric(pipp$start_time)
+pipp$u1 <- as.numeric(pipp$d.1)
+pipp$u2 <- as.numeric(pipp$d.2)
+pipp$u3 <- as.numeric(pipp$d.3)
+pipp$u4 <- as.numeric(pipp$d.4)
+pipp$u5 <- as.numeric(pipp$d.5)
+pipp$u6 <- as.numeric(pipp$d.6)
+pipp$u7 <- as.numeric(pipp$d.7)
+pipp$u8 <- as.numeric(pipp$d.8)
+
+# now minus the detection from the start to get seconds in when captures occurred
+pipp$s1 <- (pipp$u1 - pipp$u0)
+pipp$s2 <- (pipp$u2 - pipp$u0)
+pipp$s3 <- (pipp$u3 - pipp$u0)
+pipp$s4 <- (pipp$u4 - pipp$u0)
+pipp$s5 <- (pipp$u5 - pipp$u0)
+pipp$s6 <- (pipp$u6 - pipp$u0)
+pipp$s7 <- (pipp$u7 - pipp$u0)
+pipp$s8 <- (pipp$u8 - pipp$u0)
+
+#calculate velocity based on distance of run 
+pipp$velocity <- (pipp$`Run distance`/pipp$Duration)
+
+#calculate distances along transect of detection based on velocity + seconds 
+pipp$velocity <- round(pipp$velocity, 0)
+
+pipp$dist1 <- (pipp$velocity * pipp$s1)
+pipp$dist2 <- (pipp$velocity * pipp$s2)
+pipp$dist3 <- (pipp$velocity * pipp$s3)
+pipp$dist4 <- (pipp$velocity * pipp$s4)
+pipp$dist5 <- (pipp$velocity * pipp$s5)
+pipp$dist6 <- (pipp$velocity * pipp$s6)
+pipp$dist7 <- (pipp$velocity * pipp$s7)
+pipp$dist8 <- (pipp$velocity * pipp$s8)
+  
+#minus runs in direction 2 from 20 to get a standardized grid
+
+pipp$dist1 <- ifelse(pipp$direction == 2, 20 - pipp$dist1, pipp$dist1)
+pipp$dist2 <- ifelse(pipp$direction == 2, 20 - pipp$dist2, pipp$dist2)
+pipp$dist3 <- ifelse(pipp$direction == 2, 20 - pipp$dist3, pipp$dist3)
+pipp$dist4 <- ifelse(pipp$direction == 2, 20 - pipp$dist4, pipp$dist4)
+pipp$dist5 <- ifelse(pipp$direction == 2, 20 - pipp$dist5, pipp$dist5)
+pipp$dist6 <- ifelse(pipp$direction == 2, 20 - pipp$dist6, pipp$dist6)
+pipp$dist7 <- ifelse(pipp$direction == 2, 20 - pipp$dist7, pipp$dist7)
+pipp$dist8 <- ifelse(pipp$direction == 2, 20 - pipp$dist8, pipp$dist8)
+
+#check to make sure distances are bound between 0 and 20
+summary(pipp$dist1) 
+summary(pipp$dist2)
+summary(pipp$dist3)
+summary(pipp$dist4)
+summary(pipp$dist5) 
+summary(pipp$dist6) 
+summary(pipp$dist7)
+summary(pipp$dist8)
+```
+
+``` {r, clean up and pivot captures to the same column}
+#removing calculation steps
+pos_dets <- select(pipp, -c(Date,u0,u1,u2,u3,u4,u5,u6,u7,u8,s1,s2,s3,
+                            s4,s5,s6,s7,s8,dist1,dist2,dist3,dist4,dist5,dist6,
+                            dist7,dist8))
+
+#pivoting to have used points lign up
+pos_piv <- pivot_longer(pos_dets, c(d.1, d.2, d.3, d.4, d.5, d.6, d.7, d.8))
+
+#remove extra NA rows
+positive_detects <- pos_piv[!is.na(pos_piv$value),]
+
+#save all points for sequencing available locations
+future <- pos_piv[!duplicated(pos_piv$start_time), ]
+```
+
+``` {r, saving used locations}
+#saving  DF
+write_csv(positive_detects, "positive_dets_pp_2.csv")
+```
+
+``` {r, sequencing all available locations }
+#round seconds to nearest whole second 
+future$Duration <- round(future$Duration, 0)
+
+#new column with start times of each run
+future$unix_start <- as.numeric(future$start_time)
+
+#new column with end times of runs based on time taken to run
+future$unix_end <- (future$unix_start + future$Duration)
+
+#converting the unix times back to Posix for the loop to run.
+future$unix_start <- as.POSIXct(future$unix_start, origin="1970-01-01")
+future$unix_end <- as.POSIXct(future$unix_end, origin="1970-01-01")
+
+# also generating numeric of the seconds between 
+future$d_start_s <- (future$unix_start - future$unix_start)
+future$d_end_s <- (future$unix_end - future$unix_start)
+
+future$d_start_s <- as.numeric(future$d_start_s)
+future$d_end_s <- as.numeric(future$d_end_s)
+
+
+future$d_end_s <- round(future$d_end_s, 0)
+```
+
+``` {r, loops for sequencing all seconds between and POSIX times possible during jogs}
+#First loop is all possible seconds during run
+#create an empty list that I need to put everything in 
+a <- list(NULL)
+
+# start of for loop (prob easier ways to do this but....)
+## going through each row of my DF
+for( i in 1:nrow(future)) {
+  
+  #sequencing everysingle second value between the start and end time colums 
+  b <-  (seq(future$d_start_s[i], future$d_end_s[i], by = 1))
+  
+  #just making sure i can access every column in the massive a list
+  a[[i]] <- b
+}
+
+###########################################################################
+#THIS section sequences all possible posix values betwwen start and end.
+
+#create an empty list that I need to put everything in 
+w <- list(NULL)
+
+# start of for loop (prob easier ways to do this but....)
+## going through each row of my DF
+for( i in 1:nrow(future)) {
+  
+  #sequencing everysingle second value between the start and end time colums 
+  q <-  (seq(future$unix_start[i], future$unix_end[i], by = "1 sec"))
+  
+  #just making sure i can access every column in the massive a list
+  w[[i]] <- q
+}
+
+#merging old data with list.
+unique_id <- as.list(future$Unique.ID)
+x_distance <- as.list(future$`Transect distance`)
+duration <- as.list(future$Duration)
+
+ok <- cbind(w, a, unique_id, x_distance, duration)
+ok <- as.data.frame(ok)
+
+## unlisting the values so i can get them into a DF
+z <- unnest(ok, w, a)
+
+#converting list --> DF
+y <- as.data.frame(z)
+```
+
+``` {r, cleaning up data frame}
+#fixing structure
+y$duration <- as.numeric(y$duration)
+y$x_distance <- as.numeric(y$x_distance)
+y$unique_id <- as.character(y$unique_id)
+y$unique_id <- as.factor(y$unique_id)
+
+#velocity = [distnace (20m) /time for run]
+y$velocity <- (20/y$duration)
+
+#now getting my horizontal distances [ multiplying velocity by seconds in (a)]
+y$y_dist <- (y$velocity * y$a)
+
+#now, finally, filling the detection column with 0's
+y$detection <- rep(0, each = )
+neg <- y
+```
+
+```{r, merge used locations with available}
+#remove unnecessary columns 
+positive_detects2 <- select(positive_detects, -c(Duration))
+
+#making names consistent 
+names(positive_detects2)[names(positive_detects2) == "Unique.ID"] <- "unique_id"
+names(positive_detects2)[names(positive_detects2) == "Transect.distance"] <- "x_distance"
+names(positive_detects2)[names(positive_detects2) == "Duration"] <- "duration"
+names(positive_detects2)[names(positive_detects2) == "Decection"] <- "detection"
+names(positive_detects2)[names(positive_detects2) == "value"] <- "detection_time"
+
+names(neg)[names(neg) == "w"] <- "detection_time"
+names(neg)[names(neg) == "a"] <- "sec_in"
+
+#merging 
+all <- right_join(positive_detects2, neg, by = c("detection_time", "unique_id"))
+
+#adding zeros in for the available points, used are 1
+all$detection.x <- replace_na(all$detection.x, 0)
+
+#removing extra columns
+all2 <- select(all, -c(`Transect distance`,`Run distance`,direction,
+                       start_time,velocity.x,name,detection.y))
+
+#adding in columns for camera sensitivity + # photo per trigger
+all2$date <- as.Date(all2$detection_time)
+
+#sensitivity settings. 1=low, 2=med, 3=high, 4=v.high
+all2$sensitivity <- rep(1, times = )
+#sensitivity trials based on date, adding in based on date and camera ID
+all2$sensitivity[all2$date == "2022-02-09" & all2$unique_id == "WP-4"] <- 2
+all2$sensitivity[all2$date == "2022-02-09" & all2$unique_id == "WP-5"] <- 2
+all2$sensitivity[all2$date == "2022-02-09" & all2$unique_id == "WP-6"] <- 2
+all2$sensitivity[all2$date == "2022-02-09" & all2$unique_id == "WP-7"] <- 4
+all2$sensitivity[all2$date == "2022-02-09" & all2$unique_id == "WP-8"] <- 4
+all2$sensitivity[all2$date == "2022-02-09" & all2$unique_id == "WP-9"] <- 4
+#all cams on this date were set to high sensitivity 
+all2$sensitivity[all2$date == "2022-02-23" ] <- 3
+
+# number of photos per capture, 1=1photo, 2=3photo, 3=5photo
+all2$num_photos <- rep(1, times = )
+#first trial all set to 3 
+all2$num_photos[all2$date == "2022-02-09"] <- 2
+#now photo trial, later date.. specific ID's set to 3 and 5 photos per trigger
+all2$num_photos[all2$date == "2022-02-23" & all2$unique_id == "WP-4"] <- 2
+all2$num_photos[all2$date == "2022-02-23" & all2$unique_id == "WP-5"] <- 2
+all2$num_photos[all2$date == "2022-02-23" & all2$unique_id == "WP-6"] <- 2
+all2$num_photos[all2$date == "2022-02-23" & all2$unique_id == "WP-7"] <- 3
+all2$num_photos[all2$date == "2022-02-23" & all2$unique_id == "WP-8"] <- 3
+all2$num_photos[all2$date == "2022-02-23" & all2$unique_id == "WP-9"] <- 3
+
+#removing duplicated columns.
+all3 <- all2[!duplicated(cbind(all2$detection_time, all2$unique_id)), ]
+
+#saving DF
+#pippy2.0 <- write_csv(all3, "pippy_2_detect.csv")
+```
+
+```{r, formatting jog-test data from the post-sunset open-field trials, Case study B}
+#these data were formatted slightly differently, as we extracted photo metadata
+#as opposed to manually entering it. Same process, but slightly different start
+
+#Need extra package for photo metadata extraction
+library(exifr)
+```
+
+```{r, pulling metadata from post-sunset runs}
+#1
+cam1 <- read_exif('/Volumes/Untitled/DCIM/100RECNX', 
+                  tags = "DateTimeOriginal", recursive = TRUE)
+
+#2
+cam2 <- read_exif('/Volumes/Untitled/DCIM/100RECNX', 
+                  tags = "DateTimeOriginal", recursive = TRUE)
+
+#3
+cam3 <- read_exif('/Volumes/Untitled/DCIM/100RECNX', 
+                  tags = "DateTimeOriginal", recursive = TRUE)
+
+#4
+cam4 <- read_exif('/Volumes/Untitled/DCIM/100RECNX', 
+                  tags = "DateTimeOriginal", recursive = TRUE)
+
+#5
+cam5 <- read_exif('/Volumes/Untitled/DCIM/101RECNX', 
+                  tags = "DateTimeOriginal", recursive = TRUE)
+
+#6
+cam6 <- read_exif('/Volumes/Untitled/DCIM/100RECNX', 
+                  tags = "DateTimeOriginal", recursive = TRUE)
+
+#7
+#this camera has 2 folders b/c we stopped part way in. written as 'a' and 'b'
+cam7.a <- read_exif('/Volumes/Untitled/DCIM/100RECNX', 
+                  tags = "DateTimeOriginal", recursive = TRUE)
+
+cam7.b <- read_exif('/Volumes/Untitled/DCIM/102RECNX', 
+                    tags = "DateTimeOriginal", recursive = TRUE)
+
+#merge into one camera #7. SD card got removed and created 2 folders
+cam7 <- rbind(cam7.a, cam7.b)
+
+#8
+cam8 <- read_exif('/Volumes/Untitled/DCIM/100RECNX', 
+                  tags = "DateTimeOriginal", recursive = TRUE)
+
+#9
+cam9 <- read_exif('/Volumes/Untitled/DCIM/100RECNX', 
+                  tags = "DateTimeOriginal", recursive = TRUE)
+
+#10
+cam10 <- read_exif('/Volumes/Untitled/DCIM/100RECNX', 
+                  tags = "DateTimeOriginal", recursive = TRUE)
+
+#This method was less efficient, and had to manually remove false / negative photos anyways. Re load the manually cleaned data below. 
+
+#reload manually cleaned data. Cam #'s 5, 10 failed, no usable data
+cam1 <- read_csv("../data/night_extra/cam1.csv")
+cam2 <- read_csv("../data/night_extra/cam2.csv")
+cam3 <- read_csv("../data/night_extra/cam3.csv")
+cam4 <- read_csv("../data/night_extra/cam4.csv")
+cam6 <- read_csv("../data/night_extra/cam6.csv")
+cam7 <- read_csv("../data/night_extra/cam7.csv")
+cam8 <- read_csv("../data/night_extra/cam8.csv")
+cam9 <- read_csv("../data/night_extra/cam9.csv")
+```
+
+```{r, same process of formatting as all other jog-tests}
+
+#bring all cams into one post-sunset DF 
+night <- rbind(cam1, cam2, cam3, cam4, cam6, cam7, cam8, cam9)
+
+#structuring and reformatting
+night$DateTimeOriginal <- as.POSIXct(night$DateTimeOriginal, format = "%Y:%m:%d %H:%M:%S")
+night$two <- as.POSIXct(night$two, format = "%Y:%m:%d %H:%M:%S")
+night$three <- as.POSIXct(night$three, format = "%Y:%m:%d %H:%M:%S")
+night$four <- as.POSIXct(night$four, format = "%Y:%m:%d %H:%M:%S")
+
+#Convert to POSIX to get a time between start and captures
+night$u_0 <- as.numeric(night$DateTimeOriginal)
+night$u_2 <- as.numeric(night$two)
+night$u_3 <- as.numeric(night$three)
+night$u_4 <- as.numeric(night$four)
+
+#calculate seconds between start and capture
+night$s1 <- (night$u_2-night$u_0)
+night$s2 <- (night$u_3-night$u_0)
+night$s3 <- (night$u_4-night$u_0)
+
+#calculate velocity of each jog from distance and time taken to jog 
+night$velocity <- (20/night$seconds)
+
+#multiply velocity by seconds to get a location where photographic captures occurred
+night$distance1 <- (night$velocity * night$s1)
+night$distance2 <- (night$velocity * night$s2)
+night$distance3 <- (night$velocity * night$s3)
+
+#because runs were bi-directional, need to minus one direction (2 here) from 20
+night$distance1 <- ifelse(night$run_num == 2|4|6, 
+                          20 - night$distance1, night$distance1)
+night$distance2 <- ifelse(night$run_num == 2|4|6, 
+                          20 - night$distance2, night$distance2)
+night$distance3 <- ifelse(night$run_num == 2|4|6, 
+                          20 - night$distance3, night$distance3)
+
+#checking to make sure the distances are bound between 0 and 20m
+summary(night$distance1)
+summary(night$distance2)
+summary(night$distance3)
+
+#now removing the intermediary steps not needed for positive captures.
+pos_dets <- select(night, -c(SourceFile,run_num,u_0,u_2,u_3,u_4,s1,s2,s3,velocity,
+                             distance1,distance2,distance3))
+
+#pivoting date-times of photograph captures into one column
+pos_piv <- pivot_longer(pos_dets, c(two, three, four))
+
+#All we care about here are the date times, not blanks yet. can clear NAs
+positive_detects <- pos_piv[!is.na(pos_piv$value),]
+
+#saving DF with available locations too for next steps
+future <- pos_piv[!duplicated(cbind(pos_piv$DateTimeOriginal, pos_piv$unique_id.x)), ]
+
+#saving this DF
+write_csv(positive_detects, "positive_dets_night.csv")
+```
+
+```{r, sequencing all possible capture locations}
+#Bring back future DF and new column for UNIX of transect start times
+future$unix_start <- as.numeric(future$DateTimeOriginal)
+
+#New column of UNIX transect end times based on time taken to jog
+future$unix_end <- (future$unix_start + future$seconds)
+
+#convert UNIX start and end back to POSIX to get sequenced values for a loop
+future$unix_start <- as.POSIXct(future$unix_start, origin="1970-01-01")
+future$unix_end <- as.POSIXct(future$unix_end, origin="1970-01-01")
+
+#UNIX (seconds between values) to sequence all possible seconds, based on run
+#times, for each job too
+future$d_start_s <- (future$unix_start - future$unix_start)
+future$d_end_s <- (future$unix_end - future$unix_start)
+
+future$d_start_s <- as.numeric(future$d_start_s)
+future$d_end_s <- as.numeric(future$d_end_s)
+
+#Loops, first sequences all possible seconds on each jog
+#create an empty list that I need to put everything in 
+a <- list(NULL)
+
+# start of for loop (prob easier ways to do this but....)
+## going through each row of my DF
+for( i in 1:nrow(future)) {
+  
+  #sequencing everysingle second value between the start and end time columns 
+  b <-  (seq(future$d_start_s[i], future$d_end_s[i], by = 1))
+  
+  #just making sure i can access every column in the massive a list
+  a[[i]] <- b
+}
+
+#Second loop, sequences all possible POSIX times on transect.
+
+#create an empty list that I need to put everything in 
+w <- list(NULL)
+
+# start of for loop (prob easier ways to do this but....)
+## going through each row of my DF
+for( i in 1:nrow(future)) {
+  
+  #sequencing everysingle second value between the start and end time colums 
+  q <-  (seq(future$unix_start[i], future$unix_end[i], by = "1 sec"))
+  
+  #just making sure i can access every column in the massive a list
+  w[[i]] <- q
+}
+
+#merging old data with list.
+unique_id <- as.list(future$unique_id.x)
+x_distance <- as.list(future$`Transect distance`)
+duration <- as.list(future$seconds)
+
+ok <- cbind(w, a, unique_id, x_distance, duration)
+ok <- as.data.frame(ok)
+
+## unlisting the values so i can get them into a DF
+z <- unnest(ok, w, a)
+
+#converting list --> DF
+y <- as.data.frame(z)
+
+#fixing structures
+y$duration <- as.numeric(y$duration)
+y$x_distance <- as.numeric(y$x_distance)
+y$unique_id <- as.character(y$unique_id)
+y$unique_id <- as.factor(y$unique_id)
+
+#velocity calculation for each jog (expanded).
+y$velocity <- (20/y$duration)
+
+#calculating all possilbe capture locations based off velocity and seconds on transect
+y$y_dist <- (y$velocity * y$a)
+
+#now, finally, filling the detection column with 0's
+y$detection <- rep(0, each = )
+neg <- y
+
+#renaming vars to be consistent with older data
+names(positive_detects)[names(positive_detects) == "Transect distance"] <- "x_distance"
+names(positive_detects)[names(positive_detects) == "start_dec"] <- "detection"
+names(positive_detects)[names(positive_detects) == "value"] <- "detection_datetime"
+names(positive_detects)[names(positive_detects) == "unique_id.x"] <- "unique_id"
+
+names(neg)[names(neg) == "w"] <- "detection_datetime"
+names(neg)[names(neg) == "a"] <- "seconds_in"
+names(neg)[names(neg) == "y_dist"] <- "grid_dist"
+names(neg)[names(neg) == "detection"] <- "detection"
+
+# Merging the used and available locations
+all <- right_join(positive_detects, neg, by = c("detection_datetime", "unique_id"))
+
+#fill locations with no detection with a 0 (available)
+all$detection.x <- replace_na(all$detection.x, 0)
+
+#removing unnecessary columns 
+all2 <- select(all, -c(brand,x_distance.x,seconds,DateTimeOriginal,
+                       name,detection.y))
+
+#adding in brand name, this entire trial was Reconyx Hyperfire II
+all2$brand <- rep("reconyx", each = )
+
+#making sure there were no duplicated data anywhere
+all3 <- all2[!duplicated(cbind(all2$detection_datetime, all2$unique_id)), ]
+
+#saving
+#pippy_detect <- write_csv(all3, "pippy_detect.csv")
+```
