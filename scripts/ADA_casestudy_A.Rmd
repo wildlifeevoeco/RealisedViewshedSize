@@ -328,7 +328,7 @@ s <- ggplot(shrub_r) +
   theme_minimal()
 ```
 
-```{r how numeric variables (shrub, cover, temperature, velocity) influence ECA size}
+```{r how numeric variables (shrub, cover, temperature, velocity) influence ECA size (continued)}
 # Cover
 #parallel and perpendicular distances
 runs <- seq(from = -10, to = 10, by = 1)
@@ -390,7 +390,7 @@ c <- ggplot(cover_r) +
   theme_minimal()
 ```
 
-```{r how numeric variables (shrub, cover, temperature, velocity) influence ECA size}
+```{r how numeric variables (shrub, cover, temperature, velocity) influence ECA size (continued 2)}
 # Temp
 #parallel and perpendicular distances
 runs <- seq(from = -10, to = 10, by = 1)
@@ -452,7 +452,7 @@ t <- ggplot(temp_r) +
   theme_minimal()
 ```
 
-```{r how numeric variables (shrub, cover, temperature, velocity) influence ECA size}
+```{r how numeric variables (shrub, cover, temperature, velocity) influence ECA size (continued 3)}
 #velocity 
 #parallel and perpendicular distances
 runs <- seq(from = -10, to = 10, by = 1)
