@@ -1,7 +1,7 @@
 TODO:
 
-[ ] fix citation below JOURNAL, DOI
-[ ] Zenodo, badge
+- fix citation below JOURNAL, DOI
+- Zenodo, badge
 
 # Dead zones, obstructions, and missed captures: a novel approach for determining the Effective Capture Area for remote camera traps
 
