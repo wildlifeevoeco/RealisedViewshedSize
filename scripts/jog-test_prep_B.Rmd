@@ -117,7 +117,7 @@ future <- pos_piv[!duplicated(pos_piv$start_time), ]
 
 ``` {r, saving used locations}
 #saving  DF
-write_csv(positive_detects, "positive_dets_pp_2.csv")
+write_csv(positive_detects, "output/positive_dets_pp_2.csv")
 ```
 
 ``` {r, sequencing all available locations }
@@ -395,7 +395,7 @@ positive_detects <- pos_piv[!is.na(pos_piv$value),]
 future <- pos_piv[!duplicated(cbind(pos_piv$DateTimeOriginal, pos_piv$unique_id.x)), ]
 
 #saving this DF
-write_csv(positive_detects, "positive_dets_night.csv")
+write_csv(positive_detects, "output/positive_dets_night.csv")
 ```
 
 ```{r, sequencing all possible capture locations}

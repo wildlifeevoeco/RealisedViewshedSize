@@ -100,7 +100,7 @@ future <- pos_prep
 
 ``` {r, saving used locations i.e., where detections occured}
 #saving this DF
-write_csv(pos_piv2, "positive_dets_fall.csv")
+write_csv(pos_piv2, "output/positive_dets_fall.csv")
 ```
 
 ``` {r, sequencing of available locations i.e., where detections could have occured}
