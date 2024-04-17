@@ -5,7 +5,7 @@ title: "Preparing jog-test data: Case Study B"
 ``` {r installing and loading packages used in processing}
 
 package.list=c("readr", "dplyr", "janitor", "data.table", "tidyr", "rlist",
-               "conflicted")
+               "conflicted", "exifr")
 
 for (package in package.list) {
   if (!require(package, character.only=T, quietly=T)) {
