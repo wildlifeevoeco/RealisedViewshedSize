@@ -1,5 +1,5 @@
 ---
-title: "Calculating the Effective Capture Areas for Case Study B"
+title: "Calculating the Realised Viewshed Size for Case Study B"
 
 ---
 
@@ -158,7 +158,7 @@ gam.check(total_g) #had to adjust K parameter here to meet assumptions
 
 ```
 
-```{r, Generating ADA through prediciton}
+```{r, Generating RVS through prediciton}
 
 #parallel and perpendicular distances
 runs <- seq(from = -10, to = 10, by = 1)
@@ -223,9 +223,9 @@ ggplot(pred_df) +
   theme_bw() 
 ```
 
-```{r,calculating ADA for combos of sensitivity + # photos and plotting}
-#Figure 4. ADA's  based on all combinations of sensitivity and #of photos per trigger
-## held at day time. I just calculated ADA above, and imported values below. 
+```{r,calculating RVS for combos of sensitivity + # photos and plotting}
+#Figure 4. RVS's  based on all combinations of sensitivity and #of photos per trigger
+## held at day time. I just calculated RVS above, and imported values below. 
 
 ADA <- c(72.96,23.90,25.46,135.03,51.37,54.40,186.87,80.22,84.51,347.80,211.97,219.09)
 upper_se <- c(104.19,33.77,37.52,176.18,69.35,74.53,236.15,106.22,111.67,432.04,265.95,282.21)
@@ -249,7 +249,7 @@ ggplot(sens, aes(x=factor(sensitivity, level = c("low", "medium", "high", "very 
    photos") + 
   ylim(0,450) +
  xlab("Sensitivity") +
-  ylab(bquote("Effective capture area" (m^2))) +
+  ylab(bquote("Realised Viewshed Size" (m^2))) +
   theme_classic() +
 theme(axis.text.x = element_text(size = 14), axis.title.x = element_text(size = 15),
       axis.text.y = element_text(size = 14), axis.title.y = element_text(size = 15), 
@@ -307,7 +307,7 @@ base::sum(exp(pred_df$pred$prediction.fit
 #day = 176.1765  night = 173.4033
 ```
 
-```{r, Daytime and nighttime figures (Figure 5) ADA code}
+```{r, Daytime and nighttime figures (Figure 5) RVS code}
 
 color_list <- c("#E69F00", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7", "#29AF7FFF", "#56B4E9")
 
