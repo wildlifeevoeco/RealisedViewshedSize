@@ -1,5 +1,5 @@
 ---
-title: "Calculating the Effective Capture Areas for Case Study A"
+title: "Calculating the Realised Viewshed Area for Case Study A"
 ---
 
 ``` {r installing and loading packages used for analysis}
@@ -133,7 +133,7 @@ summary(total_mod)
 #model checks 
 gam.check(total_mod) #passes checks. Need to check if residual assumptions are met
 
-#saving GAMM model for ADA calculations later.
+#saving GAMM model for RVS calculations later.
 #ADA_gamm <- save(total_mod, file = "ADA_gamm.Rdata") 
 ```
 
@@ -239,12 +239,12 @@ heat_df$upper <- exp(heat_df$pred$prediction.fit
                       (1 + exp(heat_df$pred$prediction.fit 
                       + (heat_df$pred$prediction.se.fit)))
 
-base::sum(heat_df$mean) #mean ECA prediction 14.71432
+base::sum(heat_df$mean) #mean RVS prediction 14.71432
 base::sum(heat_df$lower) #lower credible interval 5.13024
 base::sum(heat_df$upper) #upper credible interval76.11202
 ```
 
-```{r, plotting the ADA into a heat map}
+```{r, plotting the RVS into a heat map}
 ggplot(heat_df) +
   geom_tile(aes(x = grid_dist, y = x_distance, fill = mean, alpha = is.na(mean))) +
   coord_equal() +
@@ -266,7 +266,7 @@ ggplot(heat_df) +
 #ggsave("rex_ada.pdf")
 ```
 
-```{r how numeric variables (shrub, cover, temperature, velocity) influence ECA size}
+```{r how numeric variables (shrub, cover, temperature, velocity) influence RVS size}
 # Shrub
 #parallel and perpendicular distances
 runs <- seq(from = -10, to = 10, by = 1)
@@ -328,7 +328,7 @@ s <- ggplot(shrub_r) +
   theme_minimal()
 ```
 
-```{r how numeric variables (shrub, cover, temperature, velocity) influence ECA size (continued)}
+```{r how numeric variables (shrub, cover, temperature, velocity) influence RVS size (continued)}
 # Cover
 #parallel and perpendicular distances
 runs <- seq(from = -10, to = 10, by = 1)
@@ -390,7 +390,7 @@ c <- ggplot(cover_r) +
   theme_minimal()
 ```
 
-```{r how numeric variables (shrub, cover, temperature, velocity) influence ECA size (continued 2)}
+```{r how numeric variables (shrub, cover, temperature, velocity) influence RVS size (continued 2)}
 # Temp
 #parallel and perpendicular distances
 runs <- seq(from = -10, to = 10, by = 1)
@@ -452,7 +452,7 @@ t <- ggplot(temp_r) +
   theme_minimal()
 ```
 
-```{r how numeric variables (shrub, cover, temperature, velocity) influence ECA size (continued 3)}
+```{r how numeric variables (shrub, cover, temperature, velocity) influence RVS size (continued 3)}
 #velocity 
 #parallel and perpendicular distances
 runs <- seq(from = -10, to = 10, by = 1)
