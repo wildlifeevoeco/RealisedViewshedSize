@@ -17,7 +17,7 @@ for (package in package.list) {
 
 ``` {r, data import}
 #loading manually entered field data, unfiltered multiphoto bursts 
-pipp <- read_csv("../data/pipp_reviewer.csv")
+pipp <- read_csv("../data/pipp_unfiltered.csv")
 ```
 
 ``` {r, These data were entered slighly different than case study A, extra clean up before we start, echo=FALSE}
