@@ -13,9 +13,7 @@ TODO:
      - [Eric Vander Wal](https://weel.gitlab.io/)
 
 
-This repository contains the code accompanying the paper "Dead zones,
-obstructions, and missed captures: a novel approach for determining the
-Realised Viewshed Size for remote camera traps" JOURNAL. DOI
+This repository contains the code accompanying the paper "One size does not fit all: a novel approach for determining the Realised Viewshed Size for remote camera traps" JOURNAL. DOI
 
 Scripts are under `scripts/`.
 
