@@ -266,13 +266,15 @@ ggplot(heat_df) +
 #ggsave("rex_ada.pdf")
 ```
 
-```{r how numeric variables (shrub, cover, temperature, velocity) influence RVS size}
+
+```{r how numeric variables (shrub, cover, temperature, velocity) influence ECA size}
 # Shrub
 #parallel and perpendicular distances
 runs <- seq(from = -10, to = 10, by = 1)
 grid_dist <- rep(runs, times = 7080)
 # want to predict to 40m, since cameras cant reach that far
-x_distance <- rep(1:40, each = 3717)
+x <- rep(1:40, each = 21)
+x_distance <- rep(x, times = 177)
 #shrub (cover, temperature, velocity)
 base::min(GAMM.df$shrub)
 base::max(GAMM.df$shrub)
@@ -291,11 +293,11 @@ brand <- rep("reconyx", times = 148680)
 seconds_since <- rep(1, times=148680)
 
 shrub_es <- cbind.data.frame(unique_id,grid_dist,x_distance,shrub,cover,velocity,
-                             brand,seconds_since,temp)
+                             brand,temp)
 
-shrub_es$prediction <- predict_gamm(total_mod, shrub_es, type = "link", 
+shrub_es$prediction <- predict_gamm(total_mod$gam, shrub_es, type = "link", 
                           se.fit = TRUE, re_form =  NA, 
-                          exclude = c("cover", "temp", "velocity", "brand", "seconds_since"))
+                          exclude = c("seconds_since"))   #rerun w.o exclude 
 
 #transform back to responce scale
 shrub_es$mean <- (exp(shrub_es$pred$prediction.fit)) /
@@ -316,25 +318,33 @@ shrub_es$upper <- exp(shrub_es$pred$prediction.fit
 shrub_r <- shrub_es %>% 
             group_by(shrub) %>%
             reframe(mean = base::sum(mean), lower = base::sum(lower), upper = base::sum(upper))
+
+#scale values to be % deviation from mean 
+# mean shrub cover value = 62 %
+shrub_r$percent <- abs((shrub_r$mean - (shrub_r$mean[shrub_r$shrub==62]))/(shrub_r$mean[shrub_r$shrub==62])) *100
     
 #mean influence of change in unit value 
-abs(base::mean(diff(shrub_r$mean))) #0.2110967
+abs(base::mean(diff(shrub_r$mean))) 
+(base::max(shrub_r$mean) - base::min(shrub_r$mean))
 
-s <- ggplot(shrub_r) +
-  geom_point(aes(x=shrub,y=mean)) +
-  xlab("Percent shrub cover") + ylab("") + ylim(0,90) +
+s <- ggplot(data = shrub_r, aes(x=shrub,y=mean)) +
+  geom_ribbon(aes(ymin=lower, ymax=upper), colour = "grey", alpha =0.3) +
+  geom_line(colour = "black", linewidth = 1) +
+  xlab("Percent shrub cover") + ylab("") + ylim(0,150) +
   theme(axis.title=element_text(size=13, colour = "black")) +
   theme(axis.text=element_text(size=13, colour = "black")) +
   theme_minimal()
+
 ```
 
-```{r how numeric variables (shrub, cover, temperature, velocity) influence RVS size (continued)}
+```{r how numeric variables (shrub, cover, temperature, velocity) influence ECA size}
 # Cover
 #parallel and perpendicular distances
 runs <- seq(from = -10, to = 10, by = 1)
 grid_dist <- rep(runs, times = 2320)
 # want to predict to 40m, since cameras cant reach that far
-x_distance <- rep(1:40, each = 1218)
+x <- rep(1:40, each = 21)
+x_distance <- rep(x, times = 58)
 #cover ranges
 base::min(GAMM.df$cover)
 base::max(GAMM.df$cover)
@@ -353,11 +363,11 @@ brand <- rep("reconyx", times = 48720)
 seconds_since <- rep(1, times=48720)
 
 cover_es <- cbind.data.frame(unique_id,grid_dist,x_distance,shrub,cover,velocity,
-                             brand,seconds_since,temp)
+                             brand,temp)
 
-cover_es$prediction <- predict_gamm(total_mod, cover_es, type = "link", 
+cover_es$prediction <- predict_gamm(total_mod$gam, cover_es, type = "link", 
                           se.fit = TRUE, re_form =  NA, 
-                          exclude = c("shrub", "temp", "velocity", "brand", "seconds_since"))
+                          exclude = c("seconds_since"))
 
 #transform back to responce scale
 cover_es$mean <- (exp(cover_es$pred$prediction.fit)) /
@@ -378,25 +388,32 @@ cover_es$upper <- exp(cover_es$pred$prediction.fit
 cover_r <- cover_es %>% 
             group_by(cover) %>%
             reframe(mean = base::sum(mean), lower = base::sum(lower), upper = base::sum(upper))
+
+#scale values to be % deviation from mean 
+# mean horizontal cover value = 79.6 % 
+cover_r$percent <- abs((cover_r$mean - (cover_r$mean[cover_r$cover==79]))/(cover_r$mean[cover_r$cover==79])) *100
     
 #mean influence of change in unit value 
-abs(base::mean(diff(cover_r$mean))) #0.2134891
+abs(base::mean(diff(cover_r$mean)))
+(base::max(cover_r$mean) - base::min(cover_r$mean))
 
-c <- ggplot(cover_r) +
-  geom_point(aes(x=cover,y=mean)) + 
-  xlab("Percent horizontal cover of vegetation") + ylab("") + ylim(0,90) +
-   theme(axis.title=element_text(size=13, colour = "black")) +
+c <- ggplot(data = cover_r, aes(x=cover,y=mean)) +
+  geom_ribbon(aes(ymin=lower, ymax=upper), colour = "grey", alpha =0.3) +
+  geom_line(colour = "black", linewidth = 1) +
+  xlab("Percent horizontal cover of vegetation") + ylab("") + ylim(0,150) +
+  theme(axis.title=element_text(size=13, colour = "black")) +
   theme(axis.text=element_text(size=13, colour = "black")) +
   theme_minimal()
 ```
 
-```{r how numeric variables (shrub, cover, temperature, velocity) influence RVS size (continued 2)}
+```{r how numeric variables (shrub, cover, temperature, velocity) influence ECA size}
 # Temp
 #parallel and perpendicular distances
 runs <- seq(from = -10, to = 10, by = 1)
 grid_dist <- rep(runs, times = 520)
 # want to predict to 40m, since cameras cant reach that far
-x_distance <- rep(1:40, each = 273)
+x <- rep(1:40, each = 21)
+x_distance <- rep(x, times = 13)
 #shrub (cover, temperature, velocity)
 cover <- rep(base::mean(GAMM.df$cover), times=10920)
 #random ID 
@@ -415,11 +432,11 @@ brand <- rep("reconyx", times = 10920)
 seconds_since <- rep(1, times=10920)
 
 temp_es <- cbind.data.frame(unique_id,grid_dist,x_distance,shrub,cover,velocity,
-                             brand,seconds_since,temp)
+                             brand,temp)
 
-temp_es$prediction <- predict_gamm(total_mod, temp_es, type = "link", 
+temp_es$prediction <- predict_gamm(total_mod$gam, temp_es, type = "link", 
                           se.fit = TRUE, re_form =  NA, 
-                          exclude = c("shrub", "cover", "velocity", "brand", "seconds_since"))
+                          exclude = c("seconds_since"))
 
 #transform back to responce scale
 temp_es$mean <- (exp(temp_es$pred$prediction.fit)) /
@@ -440,25 +457,32 @@ temp_es$upper <- exp(temp_es$pred$prediction.fit
 temp_r <- temp_es %>% 
             group_by(temp) %>%
             reframe(mean = base::sum(mean), lower = base::sum(lower), upper = base::sum(upper))
+
+#scale values to be % deviation from mean 
+# mean temp = 1.5 celcius during surveys
+temp_r$percent <- abs((temp_r$mean - (temp_r$mean[temp_r$temp==2]))/(temp_r$mean[temp_r$temp==2])) *100
     
 #mean influence of change in unit value 
-abs(base::mean(diff(temp_r$mean))) #2.546237
+abs(base::mean(diff(temp_r$mean)))
+(base::max(temp_r$mean) - base::min(temp_r$mean))
 
-t <- ggplot(temp_r) +
-  geom_point(aes(x=temp,y=mean)) + 
-  xlab("Ambient temperature (\u00B0C)") + ylab("") + ylim(0,90) +
-   theme(axis.title=element_text(size=13, colour = "black")) +
+t <- ggplot(data = temp_r, aes(x=temp,y=mean)) +
+  geom_ribbon(aes(ymin=lower, ymax=upper), colour = "grey", alpha =0.3) +
+  geom_line(colour = "black", linewidth = 1) +
+  xlab("Ambient temperature °C") + ylab("") + ylim(0,150) +
+  theme(axis.title=element_text(size=13, colour = "black")) +
   theme(axis.text=element_text(size=13, colour = "black")) +
   theme_minimal()
 ```
 
-```{r how numeric variables (shrub, cover, temperature, velocity) influence RVS size (continued 3)}
+```{r how numeric variables (shrub, cover, temperature, velocity) influence ECA size}
 #velocity 
 #parallel and perpendicular distances
 runs <- seq(from = -10, to = 10, by = 1)
 grid_dist <- rep(runs, times = 120)
 # want to predict to 40m, since cameras cant reach that far
-x_distance <- rep(1:40, each = 63)
+x <- rep(1:40, each = 21)
+x_distance <- rep(x, times = 3)
 #shrub (cover, temperature, velocity)
 cover <- rep(base::mean(GAMM.df$cover), times=2520)
 #random ID 
@@ -477,11 +501,11 @@ brand <- rep("reconyx", times = 2520)
 seconds_since <- rep(1, times=2520)
 
 velocity_es <- cbind.data.frame(unique_id,grid_dist,x_distance,shrub,cover,velocity,
-                             brand,seconds_since,temp)
+                             brand,temp)
 
-velocity_es$prediction <- predict_gamm(total_mod, velocity_es, type = "link", 
+velocity_es$prediction <- predict_gamm(total_mod$gam, velocity_es, type = "link", 
                           se.fit = TRUE, re_form =  NA, 
-                          exclude = c("shrub", "cover", "temp", "brand", "seconds_since"))
+                          exclude = c("seconds_since"))
 
 #transform back to responce scale
 velocity_es$mean <- (exp(velocity_es$pred$prediction.fit)) /
@@ -502,15 +526,21 @@ velocity_es$upper <- exp(velocity_es$pred$prediction.fit
 velocity_r <- velocity_es %>% 
             group_by(velocity) %>%
             reframe(mean = base::sum(mean), lower = base::sum(lower), upper = base::sum(upper))
+
+
+#scale values to be % deviation from mean 
+# mean velocity = 2 m/s jogs 
+velocity_r$percent <- abs((velocity_r$mean - (velocity_r$mean[velocity_r$velocity==2]))/(velocity_r$mean[velocity_r$velocity==2])) *100
     
 #mean influence of change in unit value 
-abs(base::mean(diff(velocity_r$mean))) #34.62955
+abs(base::mean(diff(velocity_r$mean)))
+(base::max(velocity_r$mean) - base::min(velocity_r$mean))
 
-
-v <- ggplot() +
-  geom_line(data = velocity_r, aes(x=velocity,y=mean)) + 
-  xlab("Velocity (m/s) of each jog") + ylab("") + ylim(0,90) +
-   theme(axis.title=element_text(size=13, colour = "black")) +
+v <- ggplot(data = velocity_r, aes(x=velocity,y=mean)) +
+  geom_ribbon(aes(ymin=lower, ymax=upper), colour = "grey", alpha =0.3) +
+  geom_line(colour = "black", linewidth = 1) +
+  xlab("Velocity (m/s) of jog") + ylab("") + ylim(0,150) +
+  theme(axis.title=element_text(size=13, colour = "black")) +
   theme(axis.text=element_text(size=13, colour = "black")) +
   theme_minimal()
 ```
@@ -523,15 +553,14 @@ lay <- rbind(c(1,1,2,2),
 
 figure <- grid.arrange(s,c,t,v, layout_matrix = lay)
 
-annotate_figure(figure, left = text_grob(bquote("Effective capture area" ~(m^2)), 
+annotate_figure(figure, left = text_grob(bquote("Realised Viewshed Size" ~(m^2)), 
                 color = "black", size = 14, rot = 90), 
                 bottom = text_grob("Unit changes in numerical covariates", 
                                    color = "black", size = 14))
 
-ggsave("effects.pdf", width = 11.5, height = 8)
+#ggsave("effects.pdf", width = 11.5, height = 8)
 
 ```
-
 ```{r, Cross validation, accuracy of predicting capture probability across cams where jog-tests didnt happen}
 
 #Running the models many times, each time withholding a single camera 
