@@ -1,7 +1,7 @@
 TODO:
 
 - fix citation below, DOI
-- Zenodo, badge
+- badge
 
 # One size does not fit all: a novel approach for determining the Realised Viewshed Size for remote camera traps
 
@@ -13,7 +13,8 @@ TODO:
      - [Eric Vander Wal](https://weel.gitlab.io/)
 
 
-This repository contains the code accompanying the paper "One size does not fit all: a novel approach for determining the Realised Viewshed Size for remote camera traps" Methods in Ecology and Evolution. add DOI 
+This repository contains the code accompanying the paper "One size does not fit all: a novel approach for determining the Realised Viewshed Size for remote camera traps" Methods in Ecology and Evolution. 
+Zenodo DOI: 10.5281/zenodo.14826797
 
 Scripts are under `scripts/`.
 
