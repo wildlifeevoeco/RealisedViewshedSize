@@ -100,7 +100,7 @@ future <- pos_prep
 
 ``` {r, saving used locations i.e., where detections occured}
 #saving this DF
-write_csv(pos_piv2, "output/positive_dets_fall.csv")
+write_csv(pos_piv2, "positive_dets_fall.csv")
 ```
 
 ``` {r, sequencing of available locations i.e., where detections could have occured}
@@ -188,7 +188,7 @@ neg <- y
 ```
 
 ``` {r, making used and available locations consistent}
-#now we have 2 data frames, one with available locations  (where they could have occured based on speed), and used locations, where captures actually did occur
+#now we have 2 data frames, one with available locations  (where they could have occurred based on speed), and used locations, where captures actually did occur
 neg <- as.data.frame(neg)
 positive_detects <- read_csv("./output/positive_dets_fall.csv")
 
